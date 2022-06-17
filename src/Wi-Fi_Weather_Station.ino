@@ -3,14 +3,13 @@
 #include <WiFiUdp.h>
 #include <ESP8266mDNS.h>
 #include <Wire.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-#include <AsyncElegantOTA.h>
 #include "DHTesp.h"
 #include <LiquidCrystal_I2C.h>
+#include <WiFiClientSecure.h>
+#include <FastBot.h>
 #include <GyverBME280.h>                      // Подключение библиотеки
+#define BOT_TOKEN "5439018659:AAFP87_LfgVMh6m-yVHhXp0QcvPFlTNDdNU"
 GyverBME280 bme;                              // Создание обьекта bme
-AsyncWebServer server(80);
 
 // датчик DHT
 #define DHTPin 2
@@ -27,7 +26,7 @@ byte time_array[6];
 int dispRain;
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
-
+FastBot bot(BOT_TOKEN);
 
 byte gragus[8]
 {
@@ -41,13 +40,15 @@ byte gragus[8]
   0b00000,
 };
 
-
 const char *ssid     = "MyWi-Fi";
 const char *password = "11223344";
 
 const long utcOffsetInSeconds = 10800;
 
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+
+int32_t menuID = 0;
+byte depth = 0;
 
 unsigned long previousMillis = 0;  // хранит время последнего обновления светодиода
 unsigned long timer_for_barometr = 0;
@@ -81,15 +82,8 @@ void setup()
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  bot.attach(newMsg);
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", "Hi! This is a sample response.");
-  });
-  
-  AsyncElegantOTA.begin(&server);    // Start AsyncElegantOTA
-  server.begin();
-  lcd.print("#");
-  Serial.println("HTTP server started");
   timeClient.begin();
   lcd.print("#");
   timeClient.update();
@@ -98,18 +92,22 @@ void setup()
   lcd.print("#");
   bme.begin();
 
- // bme.takeForcedMeasurement();
   uint32_t Pressure = bme.readPressure();
   for (byte i = 0; i < 6; i++) {   // счётчик от 0 до 5
     pressure_array[i] = Pressure;  // забить весь массив текущим давлением
     time_array[i] = i;             // забить массив времени числами 0 - 5
   }
   lcd.print("#");
+  Humidity = dht.getHumidity();       // получить значение влажности
+  Temperature = bme.readTemperature();
+
+  lcd.print("#");
   lcd.clear();
 }
 
 void loop() 
 {
+  bot.tick();
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= interval) 
   {
@@ -118,15 +116,10 @@ void loop()
     if (WiFi.status() == WL_CONNECTED)
     {
       timeClient.update();
-      //Serial.print(daysOfTheWeek[timeClient.getDay()]);
-      //Serial.print(", ");
-      //Serial.print(timeClient.getHours());
-      //Serial.print(":");
-      //Serial.print(timeClient.getMinutes());
     }
 
     Humidity = dht.getHumidity();       // получить значение влажности
-
+    Temperature = bme.readTemperature();
     if(!Humidity)
     {
       Humidity = 50;
@@ -139,21 +132,6 @@ void loop()
     {
       Humidity = 50;
     }
-
-    //Serial.print("Temperature:");
-    //Serial.println(Temperature);
-    //Serial.print("Humidity:");
-    //Serial.println(Humidity);
-
-    //float pressure = bme.readPressure();        // Читаем давление в [Па]
-    //Serial.print("Pressure: ");
-    //Serial.print(pressure / 100.0F);            // Выводим давление в [гПа]
-    //Serial.print(" hPa , ");
-
-     //Serial.print("Temperature: ");
-    //Serial.print(bme.readTemperature());        // Выводим темперутуру в [*C]
-    //Serial.println(" *C");
-
     print_time();
     print_temp();
     print_Humidity();
@@ -215,7 +193,7 @@ void print_time()
 void print_temp()
 {
  lcd.setCursor(0, 1);
- lcd.print(bme.readTemperature());
+ lcd.print(Temperature);
  lcd.setCursor(4, 1);
  lcd.print(char(1));
  lcd.setCursor(5, 1);
@@ -244,5 +222,56 @@ void print_dispRain()
  lcd.setCursor(14, 0);
  lcd.print(dispRain);
  lcd.print("%");
+}
+
+
+// обработчик сообщений
+void newMsg(FB_msg& msg) {
+  Serial.println(msg.toString());
+  String prosent(" %");
+  String gradus(" °C");
+  if(msg.OTA && msg.chatID == "631472433") 
+  {
+    bot.update();
+  }
+  else if (msg.text == "Закрити") 
+  {
+    bot.closeMenu();
+  }
+  else if(msg.text == "Температура")
+  {
+    String send_text(Temperature);
+    bot.sendMessage(send_text + gradus, msg.chatID);
+  }
+  else if(msg.text == "Вологість")
+  {
+    String send_text(Humidity);
+    bot.sendMessage(send_text + prosent, msg.chatID);
+  }
+  else if(msg.text == "Повна Інформація")
+  {
+    String send_text = "Повна інформація:";
+    send_text += String("\nТемпература: ");
+    send_text += String(Temperature);
+    send_text += gradus;
+    send_text += String("\nВолога: ");
+    send_text += String(Humidity);
+    send_text += prosent;
+    send_text += String("\nАтмосферний тиск: ");
+    send_text += String(pressure_array[5]/100);
+    send_text += String(" КПа або ");
+    send_text += String(pressureToMmHg(pressure_array[5]));
+    send_text += String(" мм рт. стовпчика");
+    send_text += String("\nЙмовірність дощу: ");
+    send_text += String(dispRain);
+    send_text += prosent;
+    
+    bot.sendMessage(send_text , msg.chatID);
+  }
+  else
+  {
+    bot.showMenu("Температура \t Вологість \t Повна Інформація \n Закрити",msg.chatID);
+  }
+
 }
 
