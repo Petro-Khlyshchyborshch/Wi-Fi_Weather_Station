@@ -55,7 +55,7 @@ unsigned long timer_for_barometr = 0;
 const long interval = 2000;        // интервал мигания (миллисекунды)
 // Определение NTP-клиента для получения времени
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
+NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", utcOffsetInSeconds);
 
 void setup()
 {
@@ -77,6 +77,7 @@ void setup()
     Serial.print(".");
     lcd.print("#");
   }
+  delay(100);
   Serial.println("");
   Serial.print("Connected to ");
   Serial.println(ssid);
@@ -86,12 +87,13 @@ void setup()
 
   timeClient.begin();
   lcd.print("#");
+  delay(100);
   timeClient.update();
   lcd.print("#");
   delay(100);
   lcd.print("#");
   bme.begin();
-
+  delay(600);
   uint32_t Pressure = bme.readPressure();
   for (byte i = 0; i < 6; i++) {   // счётчик от 0 до 5
     pressure_array[i] = Pressure;  // забить весь массив текущим давлением
@@ -113,7 +115,7 @@ void loop()
   {
     // сохранить последнее внемя
     previousMillis = currentMillis;
-    if (WiFi.status() == WL_CONNECTED)
+   // if (WiFi.status() == WL_CONNECTED)
     {
       timeClient.update();
     }
@@ -132,11 +134,7 @@ void loop()
     {
       Humidity = 50;
     }
-    print_time();
-    print_temp();
-    print_Humidity();
-    print_dispRain();
-    print_Pressure();
+    print_lcd();
   }
 
   if(currentMillis-timer_for_barometr>=600000)
@@ -149,7 +147,7 @@ void loop()
     for (byte i = 0; i < 10; i++) {
       //bme.takeForcedMeasurement();
       averPress += bme.readPressure();
-      delay(1);
+      delay(10);
     }
     averPress /= 10;
 
@@ -223,8 +221,14 @@ void print_dispRain()
  lcd.print(dispRain);
  lcd.print("%");
 }
-
-
+void print_lcd()
+{
+  print_time();
+  print_temp();
+  print_Humidity();
+  print_dispRain();
+  print_Pressure();
+}
 // обработчик сообщений
 void newMsg(FB_msg& msg) {
   Serial.println(msg.toString());
@@ -274,4 +278,3 @@ void newMsg(FB_msg& msg) {
   }
 
 }
-
