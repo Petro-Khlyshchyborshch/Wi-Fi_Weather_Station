@@ -93,7 +93,7 @@ void setup()
   delay(100);
   lcd.print("#");
   bme.begin();
-  delay(600);
+  delay(1000);
   uint32_t Pressure = bme.readPressure();
   for (byte i = 0; i < 6; i++) {   // счётчик от 0 до 5
     pressure_array[i] = Pressure;  // забить весь массив текущим давлением
@@ -203,7 +203,7 @@ void print_Humidity()
  lcd.setCursor(6, 1);
  lcd.print((int)Humidity);
  lcd.setCursor(8, 1);
- lcd.print("%");
+ lcd.print("% ");
 }
 
 void print_Pressure()
@@ -238,10 +238,6 @@ void newMsg(FB_msg& msg) {
   {
     bot.update();
   }
-  else if (msg.text == "Закрити") 
-  {
-    bot.closeMenu();
-  }
   else if(msg.text == "Температура")
   {
     String send_text(Temperature);
@@ -252,7 +248,7 @@ void newMsg(FB_msg& msg) {
     String send_text(Humidity);
     bot.sendMessage(send_text + prosent, msg.chatID);
   }
-  else if(msg.text == "Повна Інформація")
+  else if(msg.text == "Повна інформація")
   {
     String send_text = "Повна інформація:";
     send_text += String("\nТемпература: ");
@@ -274,7 +270,8 @@ void newMsg(FB_msg& msg) {
   }
   else
   {
-    bot.showMenu("Температура \t Вологість \t Повна Інформація \n Закрити",msg.chatID);
+    bot.showMenu("Температура \t Вологість \t Повна інформація ",msg.chatID);
   }
-
+  
 }
+
